@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>MPU6050 Real-Time Dashboard</title>
+        <script src="/chart.js"></script>
+        <style>
+            :root {
+                --background-color: #f8f8f8;
+                --card-background: #ffffff;
+                --primary-color: #3182ce;
+                --danger-color: #e53e3e;
+                --success-color: #38a169;
+                --warning-color: #dd6b20;
+                --text-color: #2d3748;
+                --light-gray: #e2e8f0;
+                --border-radius: 6px;
+                --shadow: 0 3px 5px rgba(0, 0, 0, 0.1);
+                --container-width: 1500px;
+                --spacing: 1rem;
+            }
+
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                    Roboto, Helvetica, Arial, sans-serif;
+                background-color: var(--background-color);
+                color: var(--text-color);
+                padding: var(--spacing);
+                max-width: var(--container-width);
+                margin: 0 auto;
+                font-size: 1rem;
+                line-height: 1.4;
+            }
+
+            /* Desktop styles (non-scrollable, full grid) */
+            @media (min-width: 768px) {
+                html,
+                body {
+                    height: 100vh;
+                    overflow-y: auto;
+                }
+
+                body {
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .dashboard-content {
+                    flex-direction: column;
+
+                    flex: 1;
+                    margin: 0px 100px 0px 100px;
+                }
+
+                .charts-grid {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--spacing);
+                    flex: 1;
+                }
+
+                .charts-row {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: var(--spacing);
+                    flex: 1;
+                    min-height: 0;
+                }
+
+                .bottom-section {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr 1fr;
+                    gap: var(--spacing);
+                    min-height: 0;
+                    margin-bottom: var(--spacing);
+                }
+
+                .chart-card {
+                    min-height: 0;
+                }
+            }
+
+            /* Mobile styles (scrollable, stacked) */
+            @media (max-width: 767px) {
+                body {
+                    height: auto;
+                    overflow-y: auto;
+                }
+
+                .dashboard-content {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--spacing);
+                }
+
+                .charts-grid {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--spacing);
+                }
+
+                .charts-row {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--spacing);
+                }
+
+                .bottom-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: var(--spacing);
+                }
+
+                .chart-container {
+                    height: 240px;
+                }
+            }
+
+            .dashboard-header {
+                margin-bottom: var(--spacing);
+                text-align: center;
+            }
+
+            .dashboard-header h1 {
+                font-weight: 600;
+                font-size: 1.2rem;
+                color: var(--text-color);
+            }
+
+            .card {
+                background-color: var(--card-background);
+                border-radius: var(--border-radius);
+                box-shadow: var(--shadow);
+                padding: calc(var(--spacing) * 1.5);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .card-header {
+                display: flex;
+                align-items: center;
+                margin-bottom: 0.4rem;
+                padding-bottom: 0.4rem;
+                border-bottom: 1px solid var(--light-gray);
+            }
+
+            .card-header h2 {
+                font-size: 1.2rem;
+                font-weight: 600;
+            }
+
+            .chart-container {
+                flex: 1;
+                min-height: 0;
+                position: relative;
+            }
+
+            .status-card {
+                display: flex;
+                flex-direction: column;
+                gap: 0.6rem;
+            }
+
+            .status-sections {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.6rem;
+            }
+
+            @media (max-width: 480px) {
+                .status-sections {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            .status-section {
+                display: flex;
+                flex-direction: column;
+                gap: 0.4rem;
+            }
+
+            .status-section h3 {
+                font-size: 0.9rem;
+                font-weight: 600;
+                color: var(--text-color);
+                margin-bottom: 0.2rem;
+            }
+
+            .status-indicator {
+                display: flex;
+                align-items: center;
+                padding: 0.4rem 0.6rem;
+                border-radius: var(--border-radius);
+                font-weight: 500;
+                font-size: 0.85rem;
+                transition: all 0.3s ease;
+            }
+
+            .status-dot {
+                height: 6px;
+                width: 6px;
+                border-radius: 50%;
+                margin-right: 0.4rem;
+            }
+
+            .status-success {
+                background-color: #f0fff4;
+                border: 1px solid #c6f6d5;
+                color: var(--success-color);
+            }
+
+            .status-success .status-dot {
+                background-color: var(--success-color);
+            }
+
+            .status-danger {
+                background-color: #fff5f5;
+                border-color: #fed7d7;
+                color: var(--danger-color);
+                animation: pulse 1.5s infinite;
+            }
+
+            .status-danger .status-dot {
+                background-color: var(--danger-color);
+            }
+
+            .status-warning {
+                background-color: #fffaf0;
+                border: 1px solid #feebc8;
+                color: var(--warning-color);
+            }
+
+            .status-warning .status-dot {
+                background-color: var(--warning-color);
+            }
+
+            .controls-section {
+                display: flex;
+                flex-direction: column;
+                gap: 0.6rem;
+            }
+
+            .button-container {
+                display: flex;
+                flex-direction: column;
+                gap: 0.4rem;
+            }
+
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0.4rem 0.6rem;
+                font-size: 0.9rem;
+                font-weight: 500;
+                border-radius: var(--border-radius);
+                border: none;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                background-color: white;
+                color: var(--text-color);
+                border: 1px solid var(--light-gray);
+            }
+
+            .btn:hover {
+                background-color: #f1f5f9;
+            }
+
+            .btn-primary {
+                background-color: var(--primary-color);
+                color: white;
+                border: none;
+            }
+
+            .btn-primary:hover {
+                background-color: #2b6cb0;
+            }
+
+            .btn-danger {
+                background-color: var(--danger-color);
+                color: white;
+                border: none;
+            }
+
+            .btn-danger:hover {
+                background-color: #c53030;
+            }
+
+            .btn-warning {
+                background-color: var(--warning-color);
+                color: white;
+                border: none;
+            }
+
+            .btn-warning:hover {
+                background-color: #c05621;
+            }
+
+            .btn-icon {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+            }
+
+            .btn-icon img {
+                width: 0.8rem;
+                height: 0.8rem;
+            }
+
+            .text-icon {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+            }
+
+            .text-icon img {
+                width: 0.8rem;
+                height: 0.8rem;
+            }
+
+            .heading-icon {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.5rem;
+                margin-bottom: var(--spacing);
+            }
+            .heading-icon h1 {
+                font-size: 23px;
+            }
+
+            .heading-icon img {
+                width: 1.5rem;
+                height: 1.5rem;
+            }
+
+            .units {
+                color: gray;
+                margin-left: 10px;
+                font-weight: 400;
+                font-size: 15px;
+            }
+
+            /* The switch - the box around the slider */
+            .switch {
+                position: relative;
+                display: inline-block;
+                width: 36px;
+                height: 20px;
+            }
+
+            .switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+            .slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #ccc;
+                transition: 0.4s;
+                border-radius: 34px;
+            }
+
+            .slider:before {
+                position: absolute;
+                content: "";
+                height: 14px;
+                width: 14px;
+                left: 3px;
+                bottom: 3px;
+                background-color: white;
+                transition: 0.4s;
+                border-radius: 50%;
+            }
+
+            input:checked + .slider {
+                background-color: #2196f3;
+            }
+
+            input:focus + .slider {
+                box-shadow: 0 0 1px #2196f3;
+            }
+
+            input:checked + .slider:before {
+                transform: translateX(16px);
+            }
+
+            /* Rounded sliders */
+            .slider.round {
+                border-radius: 34px;
+            }
+
+            .slider.round:before {
+                border-radius: 50%;
+            }
+
+            .toggle-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+            }
+
+            .toggle-row span {
+                flex: 1;
+            }
+
+            @keyframes pulse {
+                0% {
+                    box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.4);
+                }
+                70% {
+                    box-shadow: 0 0 0 10px rgba(229, 62, 62, 0);
+                }
+                100% {
+                    box-shadow: 0 0 0 0 rgba(229, 62, 62, 0);
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="heading-icon">
+            <img src="svg/chip.svg" />
+            <h1>MPU6050 Real-Time Dashboard</h1>
+        </div>
+
+        <div class="dashboard-content">
+            <div class="bottom-section">
+                <div class="card status-card">
+                    <div class="card-header">
+                        <h2>System Status</h2>
+                    </div>
+
+                    <div class="status-sections">
+                        <div class="status-section">
+                            <div class="text-icon">
+                                <img src="svg/connection.svg" />
+                                <h3>Connection Status</h3>
+                            </div>
+                            <div
+                                id="connectionStatus"
+                                class="status-indicator status-warning"
+                            >
+                                <div class="status-dot"></div>
+                                <span>Connecting...</span>
+                            </div>
+                        </div>
+
+                        <div class="status-section">
+                            <div class="text-icon">
+                                <img src="svg/plane.svg" />
+                                <h3>Fall Detection</h3>
+                            </div>
+                            <div
+                                id="fallAlert"
+                                class="status-indicator status-success"
+                            >
+                                <div class="status-dot"></div>
+                                <span>No Fall Detected</span>
+                            </div>
+                            <button id="resetFall" class="btn btn-icon">
+                                <img
+                                    src="./svg/reset.svg"
+                                    alt="Recalibrate icon"
+                                />
+                                Reset Fall Indicator
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card controls-section">
+                    <div class="card-header">
+                        <h2>Controls</h2>
+                    </div>
+                    <div class="button-container">
+                        <button
+                            id="deployParachute"
+                            class="btn btn-danger btn-icon"
+                        >
+                            <img
+                                src="./svg/parachute.svg"
+                                alt="Parachute icon"
+                            />
+                            <span>Deploy Parachute</span>
+                        </button>
+                        <button
+                            id="deployPayload"
+                            class="btn btn-warning btn-icon"
+                        >
+                            <img src="./svg/deploy.svg" alt="Deploy icon" />
+                            <span>Deploy Payload</span>
+                        </button>
+                        <button id="recalibrate" class="btn btn-icon">
+                            <img src="./svg/reset.svg" alt="Recalibrate icon" />
+                            Restart Calibration
+                        </button>
+                        <div class="toggle-row">
+                            <span>Include r Offset in Acceleration</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggleR" />
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-row">
+                            <span>Include Quaternion Gravity Correction</span>
+                            <label class="switch">
+                                <input
+                                    type="checkbox"
+                                    id="toggleQuat"
+                                    
+                                />
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <span>Trigger Using Absolute Accel</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggleAbsolute" checked />
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-row">
+                            <span>Absolute Accel Threshold (m/s²)</span>
+                            <input
+                                type="number"
+                                id="absoluteThreshold"
+                                step="0.1"
+                                value="2.5"
+                                style="width: 80px"
+                            />
+                        </div>
+
+                        <div class="toggle-row">
+                            <span>Include Known Offset Spin Correction</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggleKnownOffsetSpinCorrection" />
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-row">
+                            <span>Known Offset</span>
+                            <input
+                                type="number"
+                                id="knownOffset"
+                                step="0.001"
+                                value="0"
+                                style="width: 80px"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card controls-section">
+                    <div class="card-header">
+                        <h2>Data Export</h2>
+                    </div>
+                    <div class="button-container">
+                        <button
+                            id="downloadData"
+                            class="btn btn-primary btn-icon"
+                        >
+                            <img src="./svg/download.svg" alt="Download icon" />
+                            <span>Download Data</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="charts-grid">
+                <div class="charts-row">
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Accelerometer</h2>
+                            <p class="units">[m/s²]</p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="accel_chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Gyroscope</h2>
+                            <p class="units">[rad/s]</p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="gyro_chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="charts-row">
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Calibration Loss</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="calibration_chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Orientation (Quaternion)</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="quat_chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Offset Vector r</h2>
+                            <p class="units">[m, °]</p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="r_polar_chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Pitch / Roll / Yaw</h2>
+                            <div style="margin-left: 3rem; font-size: 10px">
+                                <label for="betaSlider"
+                                    >Filter β (Beta):
+                                    <span id="betaValue">1.5</span></label
+                                >
+                                <input
+                                    type="range"
+                                    id="betaSlider"
+                                    min="0.05"
+                                    max="2"
+                                    value="0.1"
+                                    step="0.01"
+                                    style="width: 100%"
+                                />
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="euler_chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", (event) => {
+                let ws;
+                const connectWebSocket = () => {
+                    ws = new WebSocket("ws://" + location.hostname + ":81/");
+
+                    ws.onopen = () => {
+                        console.log("WebSocket connected");
+                        const connectionStatus =
+                            document.getElementById("connectionStatus");
+                        connectionStatus.className =
+                            "status-indicator status-success";
+                        connectionStatus.innerHTML =
+                            '<div class="status-dot"></div><span>Connected</span>';
+
+                        ws.send("keepAlive");
+                        setInterval(() => ws.send("keepAlive"), 30000);
+                    };
+
+                    ws.onmessage = function (event) {
+                        const data = JSON.parse(event.data);
+
+                        quatDataQ0.push(data.q0);
+                        quatDataQ1.push(data.q1);
+                        quatDataQ2.push(data.q2);
+                        quatDataQ3.push(data.q3);
+
+                        // Update accelerometer data
+                        accelDataX.push(data.ax);
+                        accelDataY.push(data.ay);
+                        accelDataZ.push(data.az);
+                        accelDataA.push(data.aa);
+
+                        // Update gyroscope data
+                        gyroDataX.push(data.gx);
+                        gyroDataY.push(data.gy);
+                        gyroDataZ.push(data.gz);
+
+                        rollData.push(data.roll);
+                        pitchData.push(data.pitch);
+                        yawData.push(data.yaw);
+
+                        const rx = data.rx,
+                            ry = data.ry,
+                            rz = data.rz;
+
+                        const rMag = Math.sqrt(rx * rx + ry * ry + rz * rz);
+                        const rAngle =
+                            ((Math.atan2(ry, rx) * 180) / Math.PI + 360) % 360;
+                        console.log("rMag:", rMag, "rAngle:", rAngle);
+
+                        rMagnitudeData.push(rMag);
+                        rAngleData.push(rAngle);
+
+                        // Update calibration loss data
+                        calibrationLossData.push(data.cl);
+
+                        // Common timestamp for all charts
+                        labels.push("");
+
+                        // Keep the data arrays at a fixed length
+                        if (accelDataX.length > 300) {
+                            quatDataQ0.shift();
+                            quatDataQ1.shift();
+                            quatDataQ2.shift();
+                            quatDataQ3.shift();
+
+                            accelDataX.shift();
+                            accelDataY.shift();
+                            accelDataZ.shift();
+                            accelDataA.shift();
+
+                            gyroDataX.shift();
+                            gyroDataY.shift();
+                            gyroDataZ.shift();
+
+                            rollData.shift();
+                            pitchData.shift();
+                            yawData.shift();
+
+                            calibrationLossData.shift();
+
+                            rMagnitudeData.shift();
+                            rAngleData.shift();
+
+                            labels.shift();
+                        }
+
+                        // Update all charts
+                        accelChart.update();
+                        gyroChart.update();
+                        calibrationChart.update();
+                        quatChart.update();
+                        eulerChart.update();
+                        rChart.data.labels = [rAngle.toFixed(1) + "°"];
+                        rChart.data.datasets[0].data = [rMag];
+                        rChart.update();
+                        // Update fall detection status
+                        const fallAlert = document.getElementById("fallAlert");
+                        if (data.fall) {
+                            fallAlert.className =
+                                "status-indicator status-danger";
+                            fallAlert.innerHTML =
+                                '<div class="status-dot"></div><span>FALL DETECTED!</span>';
+                        } else {
+                            fallAlert.className =
+                                "status-indicator status-success";
+                            fallAlert.innerHTML =
+                                '<div class="status-dot"></div><span>No Fall Detected</span>';
+                        }
+                    };
+
+                    ws.onclose = () => {
+                        console.log("WebSocket disconnected, retrying...");
+                        const connectionStatus =
+                            document.getElementById("connectionStatus");
+                        connectionStatus.className =
+                            "status-indicator status-warning";
+                        connectionStatus.innerHTML =
+                            '<div class="status-dot"></div><span>Reconnecting...</span>';
+
+                        setTimeout(connectWebSocket, 1000);
+                    };
+
+                    ws.onerror = (error) => {
+                        console.log("WebSocket Error: ", error);
+                        const connectionStatus =
+                            document.getElementById("connectionStatus");
+                        connectionStatus.className =
+                            "status-indicator status-danger";
+                        connectionStatus.innerHTML =
+                            '<div class="status-dot"></div><span>Connection Error</span>';
+
+                        ws.close();
+                    };
+                };
+
+                connectWebSocket();
+
+                const betaSlider = document.getElementById("betaSlider");
+                const betaValueDisplay = document.getElementById("betaValue");
+
+                betaSlider.addEventListener("input", function () {
+                    const beta = parseFloat(betaSlider.value).toFixed(1);
+                    betaValueDisplay.textContent = beta;
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send("setBeta:" + beta);
+                    }
+                });
+
+                document
+                    .getElementById("toggleR")
+                    .addEventListener("change", function () {
+                        const enabled = this.checked;
+                        ws.send("toggleR:" + (enabled ? "on" : "off"));
+                    });
+
+                document
+                    .getElementById("toggleQuat")
+                    .addEventListener("change", function () {
+                        const enabled = this.checked;
+                        ws.send("toggleQuat:" + (enabled ? "on" : "off"));
+                    });
+
+                document
+                    .getElementById("toggleAbsolute")
+                    .addEventListener("change", function () {
+                        const enabled = this.checked;
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(
+                                "toggleAbsolute:" + (enabled ? "on" : "off")
+                            );
+                        }
+                    });
+
+                document
+                    .getElementById("absoluteThreshold")
+                    .addEventListener("change", function () {
+                        const threshold = parseFloat(this.value);
+                        if (
+                            !isNaN(threshold) &&
+                            ws &&
+                            ws.readyState === WebSocket.OPEN
+                        ) {
+                            ws.send(
+                                "setAbsoluteThreshold:" + threshold.toFixed(2)
+                            );
+                        }
+                    });
+
+
+                    document
+                    .getElementById("toggleKnownOffsetSpinCorrection")
+                    .addEventListener("change", function () {
+                        const enabled = this.checked;
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(
+                                "toggleKnownOffsetSpinCorrection:" + (enabled ? "on" : "off")
+                            );
+                        }
+                    });
+
+                document
+                    .getElementById("knownOffset")
+                    .addEventListener("change", function () {
+                        const threshold = parseFloat(this.value);
+                        if (
+                            !isNaN(threshold) &&
+                            ws &&
+                            ws.readyState === WebSocket.OPEN
+                        ) {
+                            ws.send(
+                                "setKnownOffset:" + threshold.toFixed(2)
+                            );
+                        }
+                    });
+
+                // Initialize data arrays with 300 zeros
+                let labels = Array(300).fill("");
+                let accelDataX = Array(300).fill(0),
+                    accelDataY = Array(300).fill(0),
+                    accelDataZ = Array(300).fill(0),
+                    accelDataA = Array(300).fill(0);
+
+                let gyroDataX = Array(300).fill(0),
+                    gyroDataY = Array(300).fill(0),
+                    gyroDataZ = Array(300).fill(0);
+
+                let calibrationLossData = Array(300).fill(0);
+
+                let rollData = Array(300).fill(0),
+                    pitchData = Array(300).fill(0),
+                    yawData = Array(300).fill(0);
+                let quatDataQ0 = Array(300).fill(0),
+                    quatDataQ1 = Array(300).fill(0),
+                    quatDataQ2 = Array(300).fill(0),
+                    quatDataQ3 = Array(300).fill(0);
+                let rMagnitudeData = Array(300).fill(0);
+                let rAngleData = Array(300).fill(0);
+
+                // Chart.js configuration
+                Chart.defaults.color = "#4a5568";
+                Chart.defaults.font.family =
+                    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+                Chart.defaults.font.size = 9;
+
+                // Accelerometer Chart
+                const accelCtx = document
+                    .getElementById("accel_chart")
+                    .getContext("2d");
+                const accelChart = new Chart(accelCtx, {
+                    type: "line",
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: "X Acceleration",
+                                data: accelDataX,
+                                borderColor: "#F56565",
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "Y Acceleration",
+                                data: accelDataY,
+                                borderColor: "#48BB78",
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "Z Acceleration",
+                                data: accelDataZ,
+                                borderColor: "#4299E1",
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "Absolute Acceleration",
+                                data: accelDataA,
+                                borderColor: "#2D3748",
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                        ],
+                    },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: "index",
+                        },
+                        plugins: {
+                            legend: {
+                                position: "top",
+                                labels: {
+                                    boxWidth: 10,
+                                    padding: 6,
+                                    font: {
+                                        size: 12,
+                                    },
+                                },
+                            },
+                            tooltip: {
+                                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                                bodyFont: {
+                                    size: 12,
+                                },
+                                padding: 6,
+                            },
+                        },
+                        scales: {
+                            x: {
+                                display: false,
+                                grid: {
+                                    display: false,
+                                },
+                            },
+                            y: {
+                                beginAtZero: false,
+                                suggestedMin: -10,
+                                suggestedMax: 10,
+                                grid: {
+                                    color: "rgba(0, 0, 0, 0.05)",
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 12,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+
+                // Gyroscope Chart
+                const gyroCtx = document
+                    .getElementById("gyro_chart")
+                    .getContext("2d");
+                const gyroChart = new Chart(gyroCtx, {
+                    type: "line",
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: "X Rotation",
+                                data: gyroDataX,
+                                borderColor: "#F56565",
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "Y Rotation",
+                                data: gyroDataY,
+                                borderColor: "#48BB78",
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "Z Rotation",
+                                data: gyroDataZ,
+                                borderColor: "#4299E1",
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                        ],
+                    },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: "index",
+                        },
+                        plugins: {
+                            legend: {
+                                position: "top",
+                                labels: {
+                                    boxWidth: 10,
+                                    padding: 6,
+                                    font: {
+                                        size: 12,
+                                    },
+                                },
+                            },
+                            tooltip: {
+                                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                                bodyFont: {
+                                    size: 12,
+                                },
+                                padding: 6,
+                            },
+                        },
+                        scales: {
+                            x: {
+                                display: false,
+                                grid: {
+                                    display: false,
+                                },
+                            },
+                            y: {
+                                beginAtZero: false,
+                                suggestedMin: -20,
+                                suggestedMax: 20,
+                                grid: {
+                                    color: "rgba(0, 0, 0, 0.05)",
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 12,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+
+                // Calibration Loss Chart
+                const calibrationCtx = document
+                    .getElementById("calibration_chart")
+                    .getContext("2d");
+                const calibrationChart = new Chart(calibrationCtx, {
+                    type: "line",
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: "Calibration Loss",
+                                data: calibrationLossData,
+                                borderColor: "#805AD5",
+                                backgroundColor: "rgba(128, 90, 213, 0.1)",
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: true,
+                                tension: 0.4,
+                            },
+                        ],
+                    },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: "index",
+                        },
+                        plugins: {
+                            legend: {
+                                position: "top",
+                                labels: {
+                                    boxWidth: 10,
+                                    padding: 6,
+                                    font: {
+                                        size: 12,
+                                    },
+                                },
+                            },
+                            tooltip: {
+                                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                                bodyFont: {
+                                    size: 12,
+                                },
+                                padding: 6,
+                            },
+                        },
+                        scales: {
+                            x: {
+                                display: false,
+                                grid: {
+                                    display: false,
+                                },
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: "rgba(0, 0, 0, 0.05)",
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 12,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+
+                const quatCtx = document
+                    .getElementById("quat_chart")
+                    .getContext("2d");
+                const quatChart = new Chart(quatCtx, {
+                    type: "line",
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: "q0",
+                                data: quatDataQ0,
+                                borderColor: "#ECC94B", // Yellow
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "q1",
+                                data: quatDataQ1,
+                                borderColor: "#F56565", // Red
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "q2",
+                                data: quatDataQ2,
+                                borderColor: "#48BB78", // Green
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "q3",
+                                data: quatDataQ3,
+                                borderColor: "#4299E1", // Blue
+                                borderWidth: 1.5,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                        ],
+                    },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: "index",
+                        },
+                        plugins: {
+                            legend: {
+                                position: "top",
+                                labels: {
+                                    boxWidth: 10,
+                                    padding: 6,
+                                    font: {
+                                        size: 12,
+                                    },
+                                },
+                            },
+                            tooltip: {
+                                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                                bodyFont: {
+                                    size: 12,
+                                },
+                                padding: 6,
+                            },
+                        },
+                        scales: {
+                            x: {
+                                display: false,
+                                grid: {
+                                    display: false,
+                                },
+                            },
+                            y: {
+                                beginAtZero: false,
+                                suggestedMin: -1,
+                                suggestedMax: 1,
+                                grid: {
+                                    color: "rgba(0, 0, 0, 0.05)",
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 12,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+
+                const eulerCtx = document
+                    .getElementById("euler_chart")
+                    .getContext("2d");
+
+                const eulerChart = new Chart(eulerCtx, {
+                    type: "line",
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: "Roll (°)",
+                                data: rollData,
+                                borderColor: "#F56565",
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "Pitch (°)",
+                                data: pitchData,
+                                borderColor: "#48BB78",
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                            {
+                                label: "Yaw (°)",
+                                data: yawData,
+                                borderColor: "#4299E1",
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                fill: false,
+                                tension: 0.1,
+                            },
+                        ],
+                    },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: "index",
+                        },
+                        plugins: {
+                            legend: {
+                                position: "top",
+                                labels: {
+                                    boxWidth: 12,
+                                    padding: 8,
+                                    font: {
+                                        size: 11,
+                                    },
+                                },
+                            },
+                            tooltip: {
+                                backgroundColor: "rgba(0, 0, 0, 0.7)",
+                                bodyFont: {
+                                    size: 12,
+                                },
+                                padding: 8,
+                            },
+                        },
+                        scales: {
+                            x: {
+                                display: false,
+                                grid: {
+                                    display: false,
+                                },
+                            },
+                            y: {
+                                beginAtZero: false,
+                                suggestedMin: -180,
+                                suggestedMax: 180,
+                                grid: {
+                                    color: "rgba(0, 0, 0, 0.05)",
+                                },
+                                ticks: {
+                                    font: {
+                                        size: 10,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+
+                const rCtx = document
+                    .getElementById("r_polar_chart")
+                    .getContext("2d");
+                const rChart = new Chart(rCtx, {
+                    type: "polarArea",
+                    data: {
+                        labels: ["Offset r"],
+                        datasets: [
+                            {
+                                label: "Magnitude of r",
+                                data: [0],
+                                backgroundColor: ["rgba(66, 153, 225, 0.5)"],
+                                borderColor: ["rgba(66, 153, 225, 1)"],
+                                borderWidth: 1,
+                            },
+                        ],
+                    },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            r: {
+                                suggestedMin: 0,
+                                suggestedMax: 0.1,
+                                ticks: {
+                                    stepSize: 0.01,
+                                },
+                            },
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        const angle =
+                                            rAngleData[rAngleData.length - 1];
+                                        return `r = ${context.raw.toFixed(
+                                            3
+                                        )} m @ ${angle.toFixed(1)}°`;
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+
+                // Resize charts when window size changes
+                window.addEventListener("resize", function () {
+                    accelChart.resize();
+                    gyroChart.resize();
+                    calibrationChart.resize();
+                    quatChart.resize();
+                    eulerChart.resize();
+                });
+
+                // Button event handlers
+                document
+                    .getElementById("resetFall")
+                    .addEventListener("click", () => {
+                        ws.send("resetFall");
+                    });
+
+                document
+                    .getElementById("deployParachute")
+                    .addEventListener("click", () => {
+                        ws.send("deployParachute");
+                    });
+
+                document
+                    .getElementById("deployPayload")
+                    .addEventListener("click", () => {
+                        ws.send("deployPayload");
+                    });
+
+                document
+                    .getElementById("recalibrate")
+                    .addEventListener("click", () => {
+                        ws.send("recalibrate");
+                    });
+
+                document
+                    .getElementById("downloadData")
+                    .addEventListener("click", () => {
+                        window.location.href = "/downloadData";
+                    });
+            });
+        </script>
+    </body>
+</html>
