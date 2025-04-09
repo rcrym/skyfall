@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>LSM6DSL Real-Time Dashboard</title>
+        <link rel="stylesheet" href="/styles/style.css" />
+        <script src="/scripts/chart.js"></script>
+        <script src="/scripts/app.js" defer></script>
+    </head>
+    <body>
+        <div class="heading-icon">
+            <img src="svg/chip.svg" />
+            <h1>LSM6DSL Real-Time Dashboard</h1>
+        </div>
+
+        <div class="dashboard-content">
+            <div class="bottom-section">
+                <div class="card status-card">
+                    <div class="card-header">
+                        <h2>System Status</h2>
+                    </div>
+
+                    <div class="status-sections">
+                        <div class="status-section">
+                            <div class="text-icon">
+                                <img src="svg/connection.svg" />
+                                <h3>Connection Status</h3>
+                            </div>
+                            <div
+                                id="connectionStatus"
+                                class="status-indicator status-warning"
+                            >
+                                <div class="status-dot"></div>
+                                <span>Connecting...</span>
+                            </div>
+                        </div>
+
+                        <div class="status-section">
+                            <div class="text-icon">
+                                <img src="svg/plane.svg" />
+                                <h3>Fall Detection</h3>
+                            </div>
+                            <div
+                                id="fallAlert"
+                                class="status-indicator status-success"
+                            >
+                                <div class="status-dot"></div>
+                                <span>No Fall Detected</span>
+                            </div>
+                            <button id="resetFall" class="btn btn-icon">
+                                <img
+                                    src="./svg/reset.svg"
+                                    alt="Recalibrate icon"
+                                />
+                                Reset Fall Indicator
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card controls-section">
+                    <div class="card-header">
+                        <h2>Controls</h2>
+                    </div>
+                    <div class="button-container">
+                        <button
+                            id="deployParachute"
+                            class="btn btn-danger btn-icon"
+                        >
+                            <img
+                                src="./svg/parachute.svg"
+                                alt="Parachute icon"
+                            />
+                            <span>Deploy Parachute</span>
+                        </button>
+                        <button
+                            id="deployPayload"
+                            class="btn btn-warning btn-icon"
+                        >
+                            <img src="./svg/deploy.svg" alt="Deploy icon" />
+                            <span>Deploy Payload</span>
+                        </button>
+                        <button id="resetPayload" class="btn btn-icon">
+                            <img src="./svg/reset.svg" alt="Reset icon" />
+                            <span>Reset Payload</span>
+                        </button>
+                        <button id="recalibrate" class="btn btn-icon">
+                            <img src="./svg/reset.svg" alt="Recalibrate icon" />
+                            Restart Calibration
+                        </button>
+                        <div class="toggle-row">
+                            <span>Include r Offset in Acceleration</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggleR" />
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-row">
+                            <span>Include Quaternion Gravity Correction</span>
+                            <label class="switch">
+                                <input type="checkbox" id="toggleQuat" />
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <span>Trigger Using Absolute Accel</span>
+                            <label class="switch">
+                                <input
+                                    type="checkbox"
+                                    id="toggleAbsolute"
+                                    checked
+                                />
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-row">
+                            <span>Absolute Accel Threshold (m/s²)</span>
+                            <input
+                                type="number"
+                                id="absoluteThreshold"
+                                step="0.1"
+                                value="2.5"
+                                style="width: 80px"
+                            />
+                        </div>
+
+                        <div class="toggle-row">
+                            <span>Include Known Offset Spin Correction</span>
+                            <label class="switch">
+                                <input
+                                    type="checkbox"
+                                    id="toggleKnownOffsetSpinCorrection"
+                                />
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+
+                        <div class="toggle-row">
+                            <span>Known Offset</span>
+                            <input
+                                type="number"
+                                id="knownOffset"
+                                step="0.001"
+                                value="0"
+                                style="width: 80px"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card controls-section">
+                    <div class="card-header">
+                        <h2>Data Export</h2>
+                    </div>
+                    <div class="button-container">
+                        <button
+                            id="downloadData"
+                            class="btn btn-primary btn-icon"
+                        >
+                            <img src="./svg/download.svg" alt="Download icon" />
+                            <span>Download Data</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="charts-grid">
+                <div class="charts-row">
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Accelerometer</h2>
+                            <p class="units">[m/s²]</p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="accel_chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Gyroscope</h2>
+                            <p class="units">[rad/s]</p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="gyro_chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="charts-row">
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Calibration Loss</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="calibration_chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Orientation (Quaternion)</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="quat_chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Offset Vector r</h2>
+                            <p class="units">[m, °]</p>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="r_polar_chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h2>Pitch / Roll / Yaw</h2>
+                            <div style="margin-left: 3rem; font-size: 10px">
+                                <label for="betaSlider"
+                                    >Filter β (Beta):
+                                    <span id="betaValue">1.5</span></label
+                                >
+                                <input
+                                    type="range"
+                                    id="betaSlider"
+                                    min="0.05"
+                                    max="2"
+                                    value="0.1"
+                                    step="0.01"
+                                    style="width: 100%"
+                                />
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="euler_chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
